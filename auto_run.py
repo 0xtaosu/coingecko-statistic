@@ -10,11 +10,11 @@ def run_script():
     logger.info("Starting daily update...")
     try:
         # 执行获取新数据的命令
-        subprocess.run(["python", "data_processor.py", "1-1000", "--fetch"], check=True)
+        subprocess.run(["python", "data_processor.py", "1-50 51-100 101-150 151-200 201-250 251-300", "--fetch"], check=True)
         logger.info("Data fetching completed.")
 
         # 执行分析数据的命令
-        subprocess.run(["python", "data_processor.py", "1-1000", "--analyze"], check=True)
+        subprocess.run(["python", "data_processor.py", "1-300", "--analyze"], check=True)
         logger.info("Data analysis completed.")
 
         logger.info("Daily update finished successfully.")
