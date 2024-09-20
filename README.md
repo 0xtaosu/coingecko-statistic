@@ -18,7 +18,7 @@
 
 1. 克隆此仓库：
    ```
-   git clone https://github.com/你的用户名/coingecko-statistic.git
+   git clone https://github.com/0xtaosu/coingecko-statistic.git
    cd coingecko-statistic
    ```
 
