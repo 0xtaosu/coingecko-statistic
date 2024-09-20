@@ -1,9 +1,11 @@
 import os
 import pandas as pd
-import schedule
-import time
-from telegram.ext import Updater, CommandHandler
+import asyncio
+from telegram import Bot
+from telegram.ext import ApplicationBuilder, CommandHandler
 from dotenv import load_dotenv
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from datetime import datetime, time
 
 # 加载环境变量
 load_dotenv()
@@ -29,29 +31,38 @@ def get_top_50_coins():
     
     return message
 
-def send_daily_update(context):
+async def send_daily_update(bot):
     message = get_top_50_coins()
-    context.bot.send_message(chat_id=CHAT_ID, text=message)
+    await bot.send_message(chat_id=CHAT_ID, text=message)
+    print(f"Daily update sent at {datetime.now()}")
 
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Bot is running. You will receive daily updates at 9:30 AM.")
+async def start(update, context):
+    await update.message.reply_text("Bot is running. You will receive daily updates at 9:30 AM.")
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+async def main():
+    # 禁用代理
+    proxy = None
+    
+    application = ApplicationBuilder().token(TOKEN).proxy_url(proxy).build()
 
-    dp.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("start", start))
 
-    # 设置每天9:30发送更新
-    schedule.every().day.at("09:30").do(send_daily_update, updater.job_queue)
+    # 创建调度器
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(send_daily_update, 'cron', hour=9, minute=30, args=[application.bot])
+    scheduler.start()
 
     # 启动bot
-    updater.start_polling()
+    await application.start()
+    await application.updater.start_polling()
+    print("Bot is now running!")
 
-    # 运行调度器
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+    # 保持bot运行
+    try:
+        await application.updater.stop()
+        await application.stop()
+    except asyncio.CancelledError:
+        pass
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
