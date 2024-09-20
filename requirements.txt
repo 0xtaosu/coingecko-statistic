@@ -5,3 +5,5 @@ apscheduler==3.10.1
 httpx==0.24.1
 schedule==1.2.0
 requests==2.31.0
+numpy==1.25.2
+matplotlib==3.7.2
