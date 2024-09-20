@@ -11,8 +11,9 @@ import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def run_http_server():
-    httpd = HTTPServer(('localhost', 8000), SimpleHTTPRequestHandler)
-    print("HTTP server is running on http://localhost:8000")
+    port = int(os.environ.get('PORT', 8000))
+    httpd = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    print(f"HTTP server is running on http://0.0.0.0:{port}")
     httpd.serve_forever()
 
 def auto_run():
@@ -22,8 +23,12 @@ def auto_run():
 
 def data_processing_job():
     print("Starting data processing job...")
-    fetch_and_save_data(['1-300'])  # 你可以根据需要调整批次
-    analyze_data()
+    batches = ['1-50', '51-100', '101-150', '151-200', '201-250', '251-300']
+    for batch in batches:
+        print(f"Processing batch {batch}")
+        fetch_and_save_data([batch])
+        time.sleep(60)  # 在每个批次之间等待60秒，以避免可能的API限制
+    analyze_data('1-300')  # 分析整个范围的数据
     print("Data processing job completed.")
 
 async def main():
