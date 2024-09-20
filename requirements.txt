@@ -1,7 +1,5 @@
-python-dotenv
-requests
-pandas
-numpy
-urllib3
-pycurl
-schedule
+python-telegram-bot==20.3
+pandas==2.0.3
+python-dotenv==1.0.0
+apscheduler==3.10.1
+httpx==0.24.1
