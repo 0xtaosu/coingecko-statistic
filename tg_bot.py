@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import asyncio
 from telegram import Bot
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, Application
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, time
@@ -31,38 +31,43 @@ def get_top_50_coins():
     
     return message
 
-async def send_daily_update(bot):
+async def send_daily_update(context: Application):
     message = get_top_50_coins()
-    await bot.send_message(chat_id=CHAT_ID, text=message)
+    await context.bot.send_message(chat_id=CHAT_ID, text=message)
     print(f"Daily update sent at {datetime.now()}")
 
 async def start(update, context):
     await update.message.reply_text("Bot is running. You will receive daily updates at 9:30 AM.")
 
-async def main():
+async def run_bot():
     # 禁用代理
     proxy = None
     
-    application = ApplicationBuilder().token(TOKEN).proxy_url(proxy).build()
+    application = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .proxy_url(proxy)
+        .build()
+    )
 
     application.add_handler(CommandHandler("start", start))
 
     # 创建调度器
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_daily_update, 'cron', hour=9, minute=30, args=[application.bot])
+    scheduler.add_job(send_daily_update, 'cron', hour=9, minute=30, args=[application])
     scheduler.start()
 
     # 启动bot
+    await application.initialize()
     await application.start()
-    await application.updater.start_polling()
     print("Bot is now running!")
 
     # 保持bot运行
-    try:
-        await application.updater.stop()
-        await application.stop()
-    except asyncio.CancelledError:
-        pass
+    stop_signal = asyncio.Future()
+    await stop_signal
+
+    # 停止bot
+    await application.stop()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(run_bot())

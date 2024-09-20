@@ -1,6 +1,6 @@
 # CoinGecko 统计与 Telegram Bot
 
-本项目从 CoinGecko API 获取并分析顶级加密货币，为每个币种计算得分，并将结果保存到 CSV 文件中。此外，它还包含一个 Telegram Bot，每天自动发送前 50 个得分最低的币种信息。
+本项目从 CoinGecko API 获取并分析顶级加密货币，为每个币种计算得分，并将结果保存到 CSV 文件中。此外，它还包含一个 Telegram Bot，每天自动发送前 50 个得分最低的币种信息，并提供一个简单的 HTTP 服务器来展示结果。
 
 ## 功能特点
 
@@ -10,6 +10,7 @@
 - 将分析结果保存到单独的 CSV 文件中
 - 命令行界面，支持灵活的批次处理和独立的数据获取与分析操作
 - Telegram Bot 自动每天发送前 50 个得分最低的币种信息
+- 简单的 HTTP 服务器，用于展示分析结果
 
 ## 系统要求
 
@@ -39,14 +40,25 @@
 
 ## 使用方法
 
-### 数据处理
+### 运行整个系统
 
-从命令行运行脚本，指定要处理的批次和操作：
+使用以下命令启动整个系统，包括数据处理、Telegram Bot 和 HTTP 服务器：
+```
+python main.py
+```
+
+这将启动以下组件：
+- HTTP 服务器（在 http://localhost:8000 上运行）
+- 每日数据处理任务（每天早上 9:00 运行）
+- Telegram Bot（每天早上 9:30 发送更新）
+
+### 单独运行数据处理
+
+如果你想单独运行数据处理，可以使用以下命令：
 
 ```
 python data_processor.py <批次1> <批次2> ... [--fetch] [--analyze]
 ```
-
 每个批次应该采用 `起始-结束` 的格式。例如：
 
 ```
@@ -59,21 +71,21 @@ python data_processor.py 1-50 51-100 101-150 --fetch --analyze
 - `--fetch`: 从 CoinGecko API 获取新数据并保存到 data.csv
 - `--analyze`: 分析 data.csv 中的数据并生成 coin_scores.csv
 
-### Telegram Bot
+### 单独运行 Telegram Bot
 
-运行 Telegram Bot：
+如果你只想运行 Telegram Bot，可以使用以下命令：
 
 ```
 python tg_bot.py
 ```
 
-Bot 将在每天早上 9:30 自动发送包含前 50 个得分最低币种的消息。
 
 ## 代码结构
 
-- `data_processor.py`：数据获取和分析的主脚本
-- `tg_bot.py`：Telegram Bot 脚本
-- `requirements.txt`：项目依赖列表
+- `main.py`: 主脚本，用于启动整个系统
+- `data_processor.py`: 数据获取和分析的脚本
+- `tg_bot.py`: Telegram Bot 脚本
+- `requirements.txt`: 项目依赖列表
 
 ## 得分计算
 
@@ -91,7 +103,7 @@ Bot 将在每天早上 9:30 自动发送包含前 50 个得分最低币种的消
 - 处理大批量数据或频繁运行脚本时，请注意 API 速率限制。
 - 得分计算使用最近 30 天的数据，这可能会影响新上市或数据不足的币种的得分。
 - 得分仅反映特定的技术指标，不应作为唯一的投资决策依据。
-- Telegram Bot 需要持续运行才能发送每日更新。
+- 运行 `main.py` 后，系统将持续运行直到手动停止（使用 Ctrl+C）。
 
 ## 贡献
 
@@ -100,4 +112,3 @@ Bot 将在每天早上 9:30 自动发送包含前 50 个得分最低币种的消
 ## 许可证
 
 [MIT](https://choosealicense.com/licenses/mit/)
-
