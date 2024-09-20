@@ -1,0 +1,7 @@
+python-dotenv
+requests
+pandas
+numpy
+urllib3
+pycurl
+schedule
