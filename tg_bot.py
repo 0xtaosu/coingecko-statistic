@@ -18,14 +18,14 @@ def get_top_50_coins():
     # 读取CSV文件
     df = pd.read_csv('coin_scores.csv')
     
-    # 按score升序排序
-    df_sorted = df.sort_values('score')
+    # 按score降序排序
+    df_sorted = df.sort_values('score', ascending=False)
     
     # 选取前50个结果
     top_50 = df_sorted.head(50)
     
     # 格式化消息
-    message = "Top 50 Coins by Score (Ascending):\n\n"
+    message = "Top 50 Coins by Score (Descending):\n\n"
     for index, row in top_50.iterrows():
         message += f"{row['symbol']} ({row['name']}): {row['score']:.2f}\n"
     

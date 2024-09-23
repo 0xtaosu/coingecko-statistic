@@ -171,14 +171,17 @@ def get_historical_data(coin_id, days=14, max_retries=5, base_delay=1):
             response.raise_for_status()
             data = response.json()
             
-            if 'prices' not in data:
-                logger.warning(f"'prices' not found in data for {coin_id}. Data keys: {data.keys()}")
+            if not all(key in data for key in ['prices', 'market_caps', 'total_volumes']):
+                logger.warning(f"Missing data for {coin_id}. Data keys: {data.keys()}")
                 return None
             
-            df = pd.DataFrame(data['prices'], columns=['timestamp', 'price'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
-            return df
+            historical_data = {
+                'prices': data['prices'],
+                'market_caps': data['market_caps'],
+                'total_volumes': data['total_volumes']
+            }
+            
+            return json.dumps(historical_data)
         
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching data for {coin_id}: {e}")
@@ -220,7 +223,7 @@ def fetch_and_save_data(batches):
                     'id': coin['id'],
                     'symbol': coin['symbol'],
                     'name': coin['name'],
-                    'historical_data': historical_data.to_json()
+                    'historical_data': historical_data
                 }
                 all_coin_data.append(coin_data)
             else:
@@ -228,57 +231,181 @@ def fetch_and_save_data(batches):
             
             time.sleep(random.uniform(0.5, 1.5))
     
-    save_to_csv(all_coin_data, 'data.csv')
+    # 将所有数据保存到一个 CSV 文件
+    df = pd.DataFrame(all_coin_data)
+    df.to_csv('data.csv', index=False)
     logger.info("All data fetched and saved to data.csv")
 
-def analyze_data():
-    with open('data.csv', 'r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        analyzed_data = []
+def analyze_data(coin_range='1-300'):
+    start, end = map(int, coin_range.split('-'))
+    
+    # 读取数据
+    df = pd.read_csv('data.csv')
+    
+    print("Columns in the CSV file:", df.columns.tolist())
+    
+    # 添加 rank 列
+    df['rank'] = list(range(1, len(df) + 1))
+    
+    # 只分析指定范围内的数据
+    df = df[(df['rank'] >= start) & (df['rank'] <= end)]
+    
+    results = []
+    for _, row in df.iterrows():
+        print(f"Processing {row['name']}:")
         
-        for row in reader:
-            # 将 JSON 字符串解析为 Python 字典
-            historical_data_dict = json.loads(row['historical_data'])
-            
-            # 将字典转换回 JSON 字符串，并用 StringIO 包装
-            historical_data_io = StringIO(json.dumps(historical_data_dict))
-            
-            # 使用 StringIO 对象读取 JSON 数据
-            historical_data = pd.read_json(historical_data_io)
-            
-            rsi = calculate_rsi(historical_data)
-            analyzed_data.append({
+        historical_data = json.loads(row['historical_data'])
+        
+        prices_df = pd.DataFrame(historical_data['prices'], columns=['timestamp', 'price'])
+        volumes_df = pd.DataFrame(historical_data['total_volumes'], columns=['timestamp', 'volume'])
+        market_caps_df = pd.DataFrame(historical_data['market_caps'], columns=['timestamp', 'market_cap'])
+        
+        coin_data = prices_df.merge(volumes_df, on='timestamp').merge(market_caps_df, on='timestamp')
+        coin_data['timestamp'] = pd.to_datetime(coin_data['timestamp'], unit='ms')
+        coin_data.set_index('timestamp', inplace=True)
+        
+        indicators = calculate_indicators(coin_data)
+        if indicators is not None:
+            results.append({
                 'id': row['id'],
                 'symbol': row['symbol'],
                 'name': row['name'],
-                'score': rsi
+                'rank': row['rank'],
+                'score': indicators['total_score'],  # 确保保存总分
+                **indicators
             })
+        else:
+            print(f"Skipping {row['name']} due to insufficient data")
     
-    save_to_csv(analyzed_data, 'coin_scores.csv')
-    logger.info("Analysis complete. Results saved to coin_scores.csv")
+    # 将结果保存到 CSV 文件
+    results_df = pd.DataFrame(results)
+    results_df.to_csv('coin_scores.csv', index=False)
+    print(f"Analysis completed for range {coin_range}. Results saved to coin_scores.csv")
+
+def calculate_indicators(data, short_ma=7, long_ma=30):
+    # 数据验证和清理
+    data = data.replace([np.inf, -np.inf], np.nan).dropna()
+    if len(data) < max(short_ma, long_ma, 14):  # 14 是用于计算 RSI 的默认周期
+        return None  # 数据不足，返回 None
+
+    # 计算每日回报率
+    data['returns'] = data['price'].pct_change()
+    
+    # 计算波动率（使用过去14天的标准差）
+    volatility = data['returns'].rolling(window=14).std().iloc[-1]
+    
+    # 计算 RSI
+    delta = data['price'].diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs)).iloc[-1]
+    
+    # 计算移动平均线
+    data['short_ma'] = data['price'].rolling(window=short_ma).mean()
+    data['long_ma'] = data['price'].rolling(window=long_ma).mean()
+    ma_diff_percentage = (data['short_ma'].iloc[-1] - data['long_ma'].iloc[-1]) / data['long_ma'].iloc[-1]
+    
+    # 计算成交量变化率
+    vol_change_rate = data['volume'].pct_change().iloc[-1]
+    
+    # 计算 K 线影线比例 (这里使用日线数据的最后一根 K 线)
+    last_candle = data.iloc[-1]
+    body = abs(last_candle['price'] - data['price'].iloc[-2])
+    high_shadow = last_candle['price'] - min(last_candle['price'], data['price'].iloc[-2])
+    low_shadow = max(last_candle['price'], data['price'].iloc[-2]) - last_candle['price']
+    shadow_ratio = (high_shadow + low_shadow) / (body + high_shadow + low_shadow) if (body + high_shadow + low_shadow) != 0 else 0
+    
+    # 获取最新市值
+    market_cap = data['market_cap'].iloc[-1]
+    
+    # 计算价格趋势
+    price_trend = (data['price'].iloc[-1] / data['price'].iloc[-7] - 1) * 100
+    
+    # 计算交易量趋势
+    volume_trend = (data['volume'].iloc[-1] / data['volume'].iloc[-7] - 1) * 100
+
+    def safe_score(value, func):
+        if np.isnan(value) or np.isinf(value):
+            return 0
+        return func(value)
+
+    def score_volatility(v):
+        return max(0, min(10, int(10 - v * 200)))  # 0-10分，线性插值
+
+    def score_rsi(r):
+        if r < 30: return 10 - int((r - 20) / 1)  # 20-30 之间，每1递减1分
+        elif r > 70: return 10 - int((r - 70) / 1)  # 70-80 之间，每1递减1分
+        else: return max(0, 5 - abs(50 - r) // 3)  # 30-70 之间，接近50分数越高
+
+    def score_ma(m):
+        return min(10, int(m * 200))  # 0-10分，线性插值
+
+    def score_volume(v):
+        return max(0, min(10, int(5 + v * 10)))  # -0.5到1.5之间，线性插值
+
+    def score_shadow(s):
+        return min(10, int(s * 20))  # 0-10分，线性插值
+
+    def score_market_cap(m):
+        return min(10, max(0, int(np.log10(m) - 5)))  # 对数刻度，1e6到1e16之间
+
+    def score_price_trend(t):
+        return max(0, min(10, int(5 + t)))  # -5%到5%之间，线性插值
+
+    def score_volume_trend(t):
+        return max(0, min(10, int(5 + t / 2)))  # -10%到10%之间，线性插值
+
+    vol_score = safe_score(volatility, score_volatility)
+    rsi_score = safe_score(rsi, score_rsi)
+    ma_score = safe_score(ma_diff_percentage, score_ma)
+    volume_score = safe_score(vol_change_rate, score_volume)
+    shadow_score = safe_score(shadow_ratio, score_shadow)
+    cap_score = safe_score(market_cap, score_market_cap)
+    price_trend_score = safe_score(price_trend, score_price_trend)
+    volume_trend_score = safe_score(volume_trend, score_volume_trend)
+
+    total_score = vol_score + rsi_score + ma_score + volume_score + shadow_score + cap_score + price_trend_score + volume_trend_score
+
+    return {
+        'volatility': volatility,
+        'rsi': rsi,
+        'ma_diff_percentage': ma_diff_percentage,
+        'vol_change_rate': vol_change_rate,
+        'shadow_ratio': shadow_ratio,
+        'market_cap': market_cap,
+        'price_trend': price_trend,
+        'volume_trend': volume_trend,
+        'total_score': total_score,
+        'vol_score': vol_score,
+        'rsi_score': rsi_score,
+        'ma_score': ma_score,
+        'volume_score': volume_score,
+        'shadow_score': shadow_score,
+        'cap_score': cap_score,
+        'price_trend_score': price_trend_score,
+        'volume_trend_score': volume_trend_score
+    }
 
 def parse_batch(batch_str):
     start, end = map(int, batch_str.split('-'))
     return (start, end)
 
+# 主函数
 def main():
-    parser = argparse.ArgumentParser(description='Process top coins from CoinGecko in batches.')
-    parser.add_argument('batches', nargs='+', type=str, 
-                        help='Batches to process, format: start-end (e.g., 1-50 51-100)')
-    parser.add_argument('--fetch', action='store_true', help='Fetch new data from CoinGecko')
-    parser.add_argument('--analyze', action='store_true', help='Analyze existing data')
+    parser = argparse.ArgumentParser(description='Fetch and analyze cryptocurrency data')
+    parser.add_argument('ranges', nargs='*', help='Ranges of coins to process (e.g. 1-50 51-100)')
+    parser.add_argument('--fetch', action='store_true', help='Fetch new data')
+    parser.add_argument('--analyze', action='store_true', help='Analyze data')
     args = parser.parse_args()
 
-    batches = [parse_batch(batch) for batch in args.batches]
-    
     if args.fetch:
-        fetch_and_save_data(batches)
-    
+        fetch_and_save_data([parse_batch(batch) for batch in args.ranges])
     if args.analyze:
         analyze_data()
 
-    if not args.fetch and not args.analyze:
-        logger.warning("No action specified. Use --fetch to get new data or --analyze to process existing data.")
-
-if __name__ == "__main__":
+# 如果直接运行此脚本
+if __name__ == '__main__':
     main()

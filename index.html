@@ -52,14 +52,13 @@
             .then(data => {
                 const rows = data.split('\n').slice(1);  // 跳过标题行
                 const coinData = rows.map(row => {
-                    const [id, symbol, name, score] = row.split(',');
-                    return { symbol, name, score: parseFloat(score) };
+                    const [id, symbol, name, rank, ...rest] = row.split(',');
+                    const score = parseFloat(rest[0]); // 假设 score 是第5列
+                    return { symbol, name, score };
                 }).filter(coin => !isNaN(coin.score)); // 过滤掉无效的分数
 
-                // 按分数升序排序
-                coinData.sort((a, b) => a.score - b.score);
-
-                // 只取前50个结果
+                // 按分数降序排序并只取前50个
+                coinData.sort((a, b) => b.score - a.score);
                 const top50 = coinData.slice(0, 50);
 
                 const tableBody = document.getElementById('coinTableBody');
