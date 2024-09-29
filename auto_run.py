@@ -2,12 +2,19 @@ import schedule
 import time
 import subprocess
 import logging
+import pytz
+from datetime import datetime
 
+# 设置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# 创建北京时区对象
+beijing_tz = pytz.timezone('Asia/Shanghai')
+
 def run_script():
-    logger.info("Starting daily update...")
+    beijing_time = datetime.now(beijing_tz).strftime('%Y-%m-%d %H:%M:%S')
+    logger.info(f"Starting daily update... (Beijing time: {beijing_time})")
     try:
         # 执行获取新数据的命令
         subprocess.run(["python", "data_processor.py", "1-50 51-100 101-150 151-200 201-250 251-300", "--fetch"], check=True)
@@ -24,10 +31,14 @@ def run_script():
         logger.error(f"An unexpected error occurred: {e}")
 
 def main():
-    # 设置每天早上9点运行
-    schedule.every().day.at("09:00").do(run_script)
+    # 计算北京时间9:00对应的UTC时间
+    beijing_time = datetime.now(beijing_tz).replace(hour=9, minute=0, second=0, microsecond=0)
+    utc_time = beijing_time.astimezone(pytz.UTC)
+    
+    # 设置每天在计算出的UTC时间运行
+    schedule.every().day.at(utc_time.strftime("%H:%M")).do(run_script)
 
-    logger.info("Automatic update scheduler started. Will run daily at 09:00.")
+    logger.info(f"Automatic update scheduler started. Will run daily at 09:00 Beijing time (UTC: {utc_time.strftime('%H:%M')}).")
 
     while True:
         schedule.run_pending()
