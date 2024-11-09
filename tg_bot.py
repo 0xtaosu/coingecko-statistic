@@ -18,7 +18,10 @@ CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 def get_top_50_coins():
     try:
         df = pd.read_csv('coin_scores.csv')
-        df_sorted = df.sort_values('total_score', ascending=False)
+        df_sorted = df.sort_values(
+            ['total_score', 'rank'], 
+            ascending=[False, True]  # 总分降序，市值排名升序
+        )
         top_50 = df_sorted.head(50)
         
         # 获取比特币的得分作为基准

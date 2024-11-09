@@ -87,7 +87,9 @@ class Backtester:
         
         # 初始化日志文件
         self.initialize_log_files()
-
+        
+        self.performance_metrics = {}  # 用于存储性能指标
+        
     def initialize_log_files(self):
         """初始化日志文件"""
         # 初始化回测日志
@@ -172,6 +174,23 @@ class Backtester:
             except Exception as e:
                 logging.error(f"Error processing date {current_date}: {e}")
                 continue
+
+        # 在回测结束后计算性能指标
+        self.calculate_performance_metrics()
+        
+        # 输出关键指标
+        logging.info(f"""
+        回测性能指标:
+        总交易次数: {self.performance_metrics['total_trades']}
+        胜率: {self.performance_metrics['win_rate']:.2%}
+        平均盈利: {self.performance_metrics['average_win']:.2%}
+        平均亏损: {self.performance_metrics['average_loss']:.2%}
+        盈亏比: {self.performance_metrics['profit_factor']:.2f}
+        平均持仓天数: {self.performance_metrics['average_holding_days']:.1f}
+        最大回撤: {self.performance_metrics['max_drawdown']:.2%}
+        夏普比率: {self.performance_metrics['sharpe_ratio']:.2f}
+        总收益率: {self.performance_metrics['total_return']:.2%}
+        """)
 
     def generate_signals(self, coin_data, dates, current_date, lookback_days=30):
         """生成交易信号"""
@@ -341,6 +360,116 @@ class Backtester:
         plt.savefig('portfolio_performance.png')
         plt.close()
 
+    def calculate_performance_metrics(self):
+        """计算回测性能指标"""
+        # 准备数据
+        trades = pd.DataFrame(self.trades_history)
+        if len(trades) == 0:
+            logging.warning("No trades to analyze")
+            return
+            
+        # 计算每笔交易的收益
+        trades_grouped = trades.groupby(['symbol']).agg({
+            'date': list,
+            'price': list,
+            'value': list,
+            'action': list
+        })
+        
+        trade_results = []
+        for _, group in trades_grouped.iterrows():
+            buys = [(d, p, v) for d, p, v, a in zip(group['date'], group['price'], 
+                    group['value'], group['action']) if a == 'buy']
+            sells = [(d, p, v) for d, p, v, a in zip(group['date'], group['price'], 
+                    group['value'], group['action']) if a == 'sell']
+            
+            for buy, sell in zip(buys, sells):
+                if sell[1] > buy[1]:  # 盈利
+                    profit = (sell[1] - buy[1]) / buy[1]
+                    trade_results.append({
+                        'result': 'win',
+                        'profit': profit,
+                        'buy_date': buy[0],
+                        'sell_date': sell[0],
+                        'holding_days': (pd.to_datetime(sell[0]) - pd.to_datetime(buy[0])).days
+                    })
+                else:  # 亏损
+                    loss = (sell[1] - buy[1]) / buy[1]
+                    trade_results.append({
+                        'result': 'loss',
+                        'profit': loss,
+                        'buy_date': buy[0],
+                        'sell_date': sell[0],
+                        'holding_days': (pd.to_datetime(sell[0]) - pd.to_datetime(buy[0])).days
+                    })
+        
+        # 转换为DataFrame
+        results_df = pd.DataFrame(trade_results)
+        
+        # 计算关键指标
+        total_trades = len(results_df)
+        winning_trades = len(results_df[results_df['result'] == 'win'])
+        losing_trades = len(results_df[results_df['result'] == 'loss'])
+        
+        # 计算收益指标
+        portfolio_values = pd.DataFrame([{
+            'date': ph['date'],
+            'value': ph['value']
+        } for ph in self.portfolio_history])
+        portfolio_values['daily_return'] = portfolio_values['value'].pct_change()
+        
+        self.performance_metrics = {
+            'total_trades': total_trades,
+            'winning_trades': winning_trades,
+            'losing_trades': losing_trades,
+            'win_rate': winning_trades / total_trades if total_trades > 0 else 0,
+            'average_win': results_df[results_df['profit'] > 0]['profit'].mean() if winning_trades > 0 else 0,
+            'average_loss': results_df[results_df['profit'] < 0]['profit'].mean() if losing_trades > 0 else 0,
+            'profit_factor': abs(results_df[results_df['profit'] > 0]['profit'].sum() / 
+                               results_df[results_df['profit'] < 0]['profit'].sum()) if losing_trades > 0 else float('inf'),
+            'average_holding_days': results_df['holding_days'].mean(),
+            'max_drawdown': self.calculate_max_drawdown(),
+            'sharpe_ratio': self.calculate_sharpe_ratio(portfolio_values['daily_return']),
+            'total_return': (self.portfolio_history[-1]['value'] - self.initial_capital) / self.initial_capital
+        }
+        
+        # 保存性能指标到CSV
+        self.save_performance_metrics()
+        
+    def calculate_max_drawdown(self):
+        """计算最大回撤"""
+        values = [ph['value'] for ph in self.portfolio_history]
+        peak = values[0]
+        max_dd = 0
+        
+        for value in values:
+            if value > peak:
+                peak = value
+            dd = (peak - value) / peak
+            if dd > max_dd:
+                max_dd = dd
+                
+        return max_dd
+        
+    def calculate_sharpe_ratio(self, returns, risk_free_rate=0.02):
+        """计算夏普比率"""
+        if len(returns) < 2:
+            return 0
+        excess_returns = returns - risk_free_rate/252  # 转换为日化无风险收益率
+        return np.sqrt(252) * excess_returns.mean() / returns.std() if returns.std() != 0 else 0
+        
+    def save_performance_metrics(self):
+        """保存性能指标到CSV"""
+        metrics_file = f"performance_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        with open(metrics_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Metric', 'Value'])
+            for metric, value in self.performance_metrics.items():
+                writer.writerow([metric, f"{value:.4f}" if isinstance(value, float) else value])
+                
+        logging.info(f"Performance metrics saved to {metrics_file}")
+        
 def main():
     logging.basicConfig(
         level=logging.INFO,

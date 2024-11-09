@@ -8,3 +8,5 @@ requests==2.31.0
 numpy==1.25.2
 matplotlib==3.7.2
 pycurl==7.45.2
+pytz==2024.1
+flask

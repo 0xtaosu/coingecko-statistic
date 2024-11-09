@@ -62,7 +62,7 @@ class CoinGeckoAPI:
             return None
 
     @classmethod
-    def get_historical_data(cls, coin_id, days=180, max_retries=5, base_delay=5):
+    def get_historical_data(cls, coin_id, days=360, max_retries=5, base_delay=5):
         """获取币种的历史数据"""
         url = f"{API_BASE_URL}/coins/{coin_id}/market_chart"
         params = {
@@ -134,7 +134,6 @@ class DataProcessor:
         def get_window_size(preferred_size):
             return min(preferred_size, total_days // 2)
         
-        weight_factor = min(1.0, total_days / 180)
         scores = {}
         
         # 首先计算收益率
