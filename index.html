@@ -10,18 +10,38 @@
         th {
             cursor: pointer;
         }
+
+        .score-detail {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .rank {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .total-score {
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
     </style>
 </head>
 
 <body>
     <div class="container mt-5">
         <h1 class="mb-4">Coin Statistics</h1>
-        <table class="table table-striped table-hover">
+        <table class="table table-hover">
             <thead>
                 <tr>
-                    <th onclick="sortTable(0)">Symbol</th>
-                    <th onclick="sortTable(1)">Name</th>
-                    <th onclick="sortTable(2)">Score</th>
+                    <th onclick="sortTable(0)">Rank</th>
+                    <th onclick="sortTable(1)">Symbol</th>
+                    <th onclick="sortTable(2)">Name</th>
+                    <th onclick="sortTable(3)" class="text-end">Total Score</th>
+                    <th>Score Details</th>
                 </tr>
             </thead>
             <tbody id="coinTableBody">
@@ -29,82 +49,92 @@
         </table>
         <div class="mt-4">
             <h4>Calculation Method:</h4>
-            <p>The score is calculated based on the following factors:</p>
+            <p>The total score is calculated based on the following factors:</p>
             <ul>
-                <li>Volatility: Lower volatility increases the score</li>
-                <li>RSI (Relative Strength Index): RSI between 30 and 70 increases the score</li>
-                <li>Moving Averages: 7-day MA above 30-day MA increases the score</li>
-                <li>Volume Change: Positive volume change increases the score</li>
+                <li>Consolidation Score (权重 1.5): 评估横盘特征</li>
+                <li>Volume Stability Score (权重 1.0): 评估成交量稳定性</li>
+                <li>Breakout Score (权重 1.5): 评估价格突破情况</li>
+                <li>Breakout Volume Score (权重 1.0): 评估突破时的成交量表现</li>
+                <li>RSI Score (权重 1.0): 评估相对强弱指标</li>
+                <li>MA Score (权重 1.0): 评估均线位置关系</li>
+                <li>Market Cap Score (权重 1.0): 评估市值规模</li>
             </ul>
-            <p>Each factor contributes 1 point to the score, with a maximum possible score of 4.</p>
-        </div>
-        <div class="mt-4">
-            <h4>Data Update:</h4>
-            <p>The data is updated daily at 9:00 AM.</p>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 读取CSV文件并填充表格
         fetch('coin_scores.csv')
             .then(response => response.text())
             .then(data => {
                 const rows = data.split('\n').slice(1);  // 跳过标题行
                 const coinData = rows.map(row => {
-                    const [id, symbol, name, rank, ...rest] = row.split(',');
-                    const score = parseFloat(rest[0]); // 假设 score 是第5列
-                    return { symbol, name, score };
-                }).filter(coin => !isNaN(coin.score)); // 过滤掉无效的分数
+                    const columns = row.split(',');
+                    if (columns.length < 22) return null;
+                    return {
+                        rank: columns[3],
+                        symbol: columns[1],
+                        name: columns[2],
+                        consolidation_volatility: columns[11],  // 使用原始数据
+                        consolidation_range: columns[12],
+                        volume_stability: columns[13],
+                        breakout_price_change: columns[14],
+                        breakout_volume_change: columns[15],
+                        rsi_current: columns[16],
+                        rsi_trend: columns[17],
+                        ma_trend: columns[18],
+                        market_cap: columns[19],
+                        total_score: columns[21]
+                    };
+                }).filter(coin => coin !== null);
 
-                // 按分数降序排序并只取前50个
-                coinData.sort((a, b) => b.score - a.score);
-                const top50 = coinData.slice(0, 50);
+                // 按总分排序
+                coinData.sort((a, b) => Number(b.total_score) - Number(a.total_score));
 
                 const tableBody = document.getElementById('coinTableBody');
-                top50.forEach(coin => {
+                coinData.forEach(coin => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${coin.symbol}</td><td>${coin.name}</td><td>${coin.score.toFixed(2)}</td>`;
+                    tr.innerHTML = `
+                        <td class="rank">#${coin.rank}</td>
+                        <td>${coin.symbol.toUpperCase()}</td>
+                        <td>${coin.name}</td>
+                        <td class="text-end total-score">${coin.total_score}</td>
+                        <td class="score-detail">
+                            横盘: ${coin.consolidation_volatility} |
+                            成交量: ${coin.volume_stability} |
+                            突破: ${coin.breakout_price_change} |
+                            突破量: ${coin.breakout_volume_change} |
+                            RSI: ${coin.rsi_current} |
+                            MA: ${coin.ma_trend} |
+                            市值: ${coin.market_cap}
+                        </td>
+                    `;
                     tableBody.appendChild(tr);
                 });
             });
 
-        // 排序函数
         function sortTable(n) {
-            var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
-            table = document.querySelector("table");
-            switching = true;
-            dir = "asc";
-            while (switching) {
-                switching = false;
-                rows = table.rows;
-                for (i = 1; i < (rows.length - 1); i++) {
-                    shouldSwitch = false;
-                    x = rows[i].getElementsByTagName("TD")[n];
-                    y = rows[i + 1].getElementsByTagName("TD")[n];
-                    if (dir == "asc") {
-                        if (n === 2 ? parseFloat(x.innerHTML) > parseFloat(y.innerHTML) : x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
-                            shouldSwitch = true;
-                            break;
-                        }
-                    } else if (dir == "desc") {
-                        if (n === 2 ? parseFloat(x.innerHTML) < parseFloat(y.innerHTML) : x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
-                            shouldSwitch = true;
-                            break;
-                        }
-                    }
-                }
-                if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                    switching = true;
-                    switchcount++;
+            const table = document.querySelector("table");
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+
+            const direction = table.getAttribute("data-sort-direction") === "asc" ? -1 : 1;
+            table.setAttribute("data-sort-direction", direction === 1 ? "asc" : "desc");
+
+            const sortedRows = rows.sort((row1, row2) => {
+                const cell1 = row1.querySelectorAll("td")[n];
+                const cell2 = row2.querySelectorAll("td")[n];
+                const val1 = n === 3 ? Number(cell1.textContent) : cell1.textContent;
+                const val2 = n === 3 ? Number(cell2.textContent) : cell2.textContent;
+
+                if (typeof val1 === "number") {
+                    return direction * (val2 - val1);
                 } else {
-                    if (switchcount == 0 && dir == "asc") {
-                        dir = "desc";
-                        switching = true;
-                    }
+                    return direction * val1.localeCompare(val2);
                 }
-            }
+            });
+
+            tbody.innerHTML = "";
+            sortedRows.forEach(row => tbody.appendChild(row));
         }
     </script>
 </body>
