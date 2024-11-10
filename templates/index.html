@@ -26,12 +26,22 @@
             font-size: 0.9em;
             margin-top: 10px;
         }
+
+        .card-header.bg-success {
+            background-color: #28a745 !important;
+        }
+
+        .trading-signal {
+            border-left: 4px solid #28a745;
+            padding-left: 15px;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container mt-5">
-        <h1>加密货币技术分析信号</h1>
+        <h1>Coin Statistics</h1>
         <p class="update-time">最后更新时间：{{ update_time }}</p>
 
         <!-- 币种分析结果 -->
@@ -72,6 +82,52 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- 交易建议卡片 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h3>📊 交易建议</h3>
+            </div>
+            <div class="card-body">
+                {% if trading_signals %}
+                <div class="row">
+                    {% for signal in trading_signals %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">{{ signal.symbol }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled">
+                                    <li><strong>信号强度:</strong> {{ "%.1f"|format(signal.score) }}</li>
+                                    <li><strong>建议入场:</strong> ${{ "%.4f"|format(signal.price) }}</li>
+                                    <li><strong>止损价位:</strong> ${{ "%.4f"|format(signal.stop_loss) }}</li>
+                                    <li><strong>止盈价位:</strong> ${{ "%.4f"|format(signal.take_profit) }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    当前没有强烈的交易信号
+                </div>
+                {% endif %}
+
+                <!-- 风险管理提示 -->
+                <div class="alert alert-warning mt-3">
+                    <h5>⚠️ 风险管理建议</h5>
+                    <ul class="mb-0">
+                        <li>单个仓位最大占比: 10%</li>
+                        <li>最小交易金额: $100</li>
+                        <li>最大持仓数量: 5个</li>
+                        <li>建议止损: -10%</li>
+                        <li>建议止盈: +20%</li>
+                    </ul>
+                </div>
             </div>
         </div>
 

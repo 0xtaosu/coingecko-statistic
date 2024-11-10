@@ -205,13 +205,18 @@ python backtest.py
    git clone https://github.com/0xtaosu/coingecko-statistic.git
    cd coingecko-statistic
    ```
+2. 创建和激活虚拟环境：
 
-2. 安装所需包：
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+3. 安装所需包：
    ```
    pip install -r requirements.txt
    ```
 
-3. 配置环境变量：
+4. 配置环境变量：
    在项目根目录创建一个 `.env` 文件，并添加以下内容：
    ```
    COINGECKO_API_KEY=你的CoinGecko API密钥

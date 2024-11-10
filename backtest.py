@@ -81,27 +81,30 @@ class Backtester:
         
         logging.info(f"Backtester initialized with {initial_capital:.2f} capital")
         
-        # 添加日志文件名
-        self.log_file = f"backtest_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        self.trade_log_file = f"trade_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        # 使用当前日期生成日志文件名
+        current_date = datetime.now().strftime('%Y%m%d')
+        self.log_file = f"backtest_log_{current_date}.csv"
+        self.trade_log_file = f"trade_log_{current_date}.csv"
         
-        # 初始化日志文件
+        # 只在文件不存在时初始化日志文件
         self.initialize_log_files()
         
-        self.performance_metrics = {}  # 用于存储性能指标
-        
+        self.performance_metrics = {}
+
     def initialize_log_files(self):
-        """初始化日志文件"""
+        """初始化日志文件，只在文件不存在时创建"""
         # 初始化回测日志
-        with open(self.log_file, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Date', 'Total Value', 'Cash', 'Positions', 'Daily Return'])
+        if not os.path.exists(self.log_file):
+            with open(self.log_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['Date', 'Total Value', 'Cash', 'Positions', 'Daily Return'])
             
         # 初始化交易日志
-        with open(self.trade_log_file, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Date', 'Symbol', 'Action', 'Price', 'Quantity', 
-                           'Value', 'Stop Loss', 'Take Profit', 'Signal Score'])
+        if not os.path.exists(self.trade_log_file):
+            with open(self.trade_log_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['Date', 'Symbol', 'Action', 'Price', 'Quantity', 
+                               'Value', 'Stop Loss', 'Take Profit', 'Signal Score'])
 
     def log_portfolio(self, date, total_value):
         """记录每日投资组合状态"""

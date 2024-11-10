@@ -8,6 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, Application
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, time
+from backtest import Backtester, DataLoader
 
 # 加载环境变量
 load_dotenv()
@@ -56,18 +57,136 @@ def get_top_50_coins():
     except Exception as e:
         return f"Error generating report: {str(e)}"
 
-async def send_daily_update(context: Application):
-    message = get_top_50_coins()
+def get_trading_signals():
+    """获取交易建议"""
     try:
-        # 使用 Markdown 格式发送消息
+        # 加载数据
+        data_loader = DataLoader()
+        coin_data = data_loader.load_data()
+        
+        # 初始化回测器
+        backtester = Backtester(
+            coin_data=coin_data,
+            initial_capital=10000,
+            stop_loss=0.1,
+            take_profit=0.2
+        )
+        
+        # 获取当前日期的信号
+        current_date = pd.Timestamp.now(tz='UTC')
+        signals = backtester.generate_signals(coin_data, [current_date], current_date)
+        
+        # 生成交易建议消息
+        message = "🎯 *Trading Signals*\n\n"
+        
+        # 按信号强度排序
+        sorted_signals = sorted(
+            [(symbol, data) for symbol, data in signals.items()],
+            key=lambda x: x[1]['total_score'],
+            reverse=True
+        )
+        
+        # 生成买入建议
+        buy_suggestions = []
+        for symbol, signal in sorted_signals[:5]:  # 取前5个最强信号
+            if signal['total_score'] > 7:  # 与回测系统保持一致的阈值
+                price = coin_data[symbol]['data'].iloc[-1]['price']
+                stop_loss = price * (1 - backtester.stop_loss)
+                take_profit = price * (1 + backtester.take_profit)
+                
+                buy_suggestions.append(
+                    f"📈 *{symbol}*\n"
+                    f"Score: {signal['total_score']:.1f}\n"
+                    f"Entry: ${price:.4f}\n"
+                    f"Stop Loss: ${stop_loss:.4f}\n"
+                    f"Take Profit: ${take_profit:.4f}\n"
+                )
+        
+        if buy_suggestions:
+            message += "*🟢 Buy Suggestions:*\n"
+            message += "\n".join(buy_suggestions)
+        else:
+            message += "🔍 No strong buy signals at the moment.\n"
+        
+        message += "\n⚠️ *Risk Management*:\n"
+        message += "• Max position size: 10% of portfolio\n"
+        message += "• Min trade amount: $100\n"
+        message += "• Max positions: 5\n\n"
+        message += "📊 DYOR. Not financial advice."
+        
+        return message
+        
+    except Exception as e:
+        return f"Error generating trading signals: {str(e)}"
+
+def get_latest_trading_signals():
+    """从最新的日志文件中获取交易信号"""
+    try:
+        # 获取当前日期的日志文件名
+        current_date = datetime.now().strftime('%Y%m%d')
+        trade_log_file = f"trade_log_{current_date}.csv"
+        
+        if not os.path.exists(trade_log_file):
+            return "No trading signals available for today."
+            
+        # 读取交易日志
+        df = pd.read_csv(trade_log_file)
+        
+        # 只获取最新的买入信号
+        latest_signals = df[df['Action'] == 'BUY'].tail(5)
+        
+        if len(latest_signals) == 0:
+            return "No buy signals available for today."
+            
+        # 生成消息
+        message = "🎯 *Latest Trading Signals*\n\n"
+        
+        for _, signal in latest_signals.iterrows():
+            message += (
+                f"📈 *{signal['Symbol']}*\n"
+                f"Entry: ${float(signal['Price']):.4f}\n"
+                f"Stop Loss: ${float(signal['Stop Loss']):.4f}\n"
+                f"Take Profit: ${float(signal['Take Profit']):.4f}\n"
+                f"Score: {float(signal['Signal Score']):.1f}\n\n"
+            )
+            
+        message += (
+            "⚠️ *Risk Management*:\n"
+            "• Max position size: 10%\n"
+            "• Min trade amount: $100\n"
+            "• Max positions: 5\n"
+            "• Stop Loss: -10%\n"
+            "• Take Profit: +20%\n\n"
+            "📊 DYOR. Not financial advice."
+        )
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"Error reading trading signals: {e}")
+        return "Error getting trading signals."
+
+async def send_daily_update(context: Application):
+    # 发送市场分析
+    market_analysis = get_top_50_coins()
+    try:
         await context.bot.send_message(
             chat_id=CHAT_ID,
-            text=message,
+            text=market_analysis,
             parse_mode=ParseMode.MARKDOWN
         )
-        print(f"✅ Daily update sent at {datetime.now()}")
+        
+        # 发送交易信号
+        trading_signals = get_latest_trading_signals()
+        await context.bot.send_message(
+            chat_id=CHAT_ID,
+            text=trading_signals,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        print(f"✅ Daily update and trading signals sent at {datetime.now()}")
     except Exception as e:
-        print(f"❌ Error sending message: {str(e)}")
+        print(f"❌ Error sending message: {e}")
 
 async def start(update, context):
     welcome_message = (
@@ -87,23 +206,42 @@ async def start(update, context):
 async def get_update(update, context):
     """手动触发更新的命令处理函数"""
     await update.message.reply_text("🔄 Generating analysis...")
-    message = get_top_50_coins()
+    
+    # 发送市场分析
+    market_analysis = get_top_50_coins()
     await update.message.reply_text(
-        message,
+        market_analysis,
+        parse_mode=ParseMode.MARKDOWN
+    )
+    
+    # 发送交易建议
+    trading_signals = get_trading_signals()
+    await update.message.reply_text(
+        trading_signals,
         parse_mode=ParseMode.MARKDOWN
     )
 
 async def manual_send():
     """手动发送消息的函数"""
     bot = Bot(token=TOKEN)
-    message = get_top_50_coins()
     try:
+        # 发送市场分析
+        market_analysis = get_top_50_coins()
         await bot.send_message(
             chat_id=CHAT_ID,
-            text=message,
+            text=market_analysis,
             parse_mode=ParseMode.MARKDOWN
         )
-        print(f"✅ Manual update sent at {datetime.now()}")
+        
+        # 发送交易建议
+        trading_signals = get_trading_signals()
+        await bot.send_message(
+            chat_id=CHAT_ID,
+            text=trading_signals,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        print(f"✅ Manual update and trading signals sent at {datetime.now()}")
     except Exception as e:
         print(f"❌ Error sending message: {str(e)}")
 
