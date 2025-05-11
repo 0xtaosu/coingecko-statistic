@@ -5,7 +5,8 @@ import schedule
 import time
 import sys
 from data_processor import fetch_and_save_data, analyze_data
-from tg_bot import run_bot
+# Comment out telegram bot import
+# from tg_bot import run_bot
 import os
 import logging
 from datetime import datetime, timezone
@@ -205,9 +206,9 @@ async def main():
         logger.info(f"Application started at Beijing time: {current_beijing_time.strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("Task scheduled for 09:00 Beijing time (01:00 UTC)")
 
-        # 启动 Telegram Bot
-        logger.info("Starting Telegram Bot...")
-        bot_task = asyncio.create_task(run_bot())
+        # Comment out Telegram Bot
+        # logger.info("Starting Telegram Bot...")
+        # bot_task = asyncio.create_task(run_bot())
 
         # 等待直到程序被中断
         try:

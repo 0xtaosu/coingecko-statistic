@@ -2,15 +2,15 @@
 <html>
 
 <head>
-    <title>Crypto Analysis Dashboard</title>
+    <title>Coin Statistics </title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <style>
         .methodology-section {
             background-color: #f8f9fa;
-            padding: 20px;
+            padding: 15px;
             border-radius: 5px;
-            margin-top: 30px;
+            margin-top: 20px;
         }
 
         .risk-warning {
@@ -18,13 +18,14 @@
             color: #856404;
             padding: 15px;
             border-radius: 5px;
-            margin-top: 20px;
+            margin-top: 15px;
         }
 
         .update-time {
             color: #6c757d;
             font-size: 0.9em;
-            margin-top: 10px;
+            text-align: right;
+            margin-top: 5px;
         }
 
         .card-header.bg-success {
@@ -36,18 +37,43 @@
             padding-left: 15px;
             margin-bottom: 15px;
         }
+
+        .page-title {
+            color: #1d9bf0;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .custom-container {
+            max-width: 1000px;
+            /* Narrower container */
+            margin: 0 auto;
+            padding: 0 10px;
+            /* Reduced side padding */
+        }
+
+        .card {
+            margin-bottom: 15px;
+        }
+
+        .card-body {
+            padding: 15px;
+        }
+
+        .table {
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 
 <body>
-    <div class="container mt-5">
-        <h1>Coin Statistics</h1>
-        <p class="update-time">最后更新时间：{{ update_time }}</p>
+    <div class="custom-container mt-4">
+        <h2 class="page-title">Coin Statistics</h2>
 
         <!-- 币种分析结果 -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3>Top 50 信号</h3>
+        <div class="card">
+            <div class="card-header py-2">
+                <h3 class="mb-0">Top 50 信号</h3>
             </div>
             <div class="card-body">
                 <table id="coinsTable" class="table table-striped">
@@ -82,25 +108,26 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <div class="update-time">最后更新时间：{{ update_time }}</div>
             </div>
         </div>
 
         <!-- 交易建议卡片 -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h3>📊 交易建议</h3>
+        <div class="card">
+            <div class="card-header py-2">
+                <h3 class="mb-0">📊 交易建议</h3>
             </div>
             <div class="card-body">
                 {% if trading_signals %}
-                <div class="row">
+                <div class="row g-2">
                     {% for signal in trading_signals %}
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-4 mb-2">
                         <div class="card h-100">
-                            <div class="card-header bg-success text-white">
+                            <div class="card-header bg-success text-white py-1">
                                 <h5 class="mb-0">{{ signal.symbol }}</h5>
                             </div>
-                            <div class="card-body">
-                                <ul class="list-unstyled">
+                            <div class="card-body py-2">
+                                <ul class="list-unstyled mb-0">
                                     <li><strong>信号强度:</strong> {{ "%.1f"|format(signal.score) }}</li>
                                     <li><strong>建议入场:</strong> ${{ "%.4f"|format(signal.price) }}</li>
                                     <li><strong>止损价位:</strong> ${{ "%.4f"|format(signal.stop_loss) }}</li>
@@ -112,14 +139,14 @@
                     {% endfor %}
                 </div>
                 {% else %}
-                <div class="alert alert-info">
+                <div class="alert alert-info py-2">
                     当前没有强烈的交易信号
                 </div>
                 {% endif %}
 
                 <!-- 风险管理提示 -->
-                <div class="alert alert-warning mt-3">
-                    <h5>⚠️ 风险管理建议</h5>
+                <div class="alert alert-warning mt-2 py-2">
+                    <h5 class="mb-1">⚠️ 风险管理建议</h5>
                     <ul class="mb-0">
                         <li>单个仓位最大占比: 10%</li>
                         <li>最小交易金额: $100</li>
@@ -133,9 +160,9 @@
 
         <!-- 计算方法说明 -->
         <div class="methodology-section">
-            <h4>计算方法说明</h4>
-            <p>总分（满分10分）由以下因素加权计算：</p>
-            <ul>
+            <h4 class="mb-2">计算方法说明</h4>
+            <p class="mb-2">总分（满分10分）由以下因素加权计算：</p>
+            <ul class="mb-0">
                 <li><strong>横盘特征 (权重1.5)</strong>: 评估币价在过去90天内的横盘整理特征</li>
                 <li><strong>成交量稳定性 (权重1.0)</strong>: 分析交易量的稳定性和趋势</li>
                 <li><strong>突破形态 (权重1.5)</strong>: 识别价格突破横盘区间的特征</li>
@@ -146,8 +173,8 @@
 
         <!-- 风险提示 -->
         <div class="risk-warning">
-            <h4>⚠️ 风险提示</h4>
-            <ul>
+            <h4 class="mb-2">⚠️ 风险提示</h4>
+            <ul class="mb-0">
                 <li>本分析仅基于技术指标，不构成投资建议</li>
                 <li>加密货币市场风险高，波动大，请谨慎投资</li>
                 <li>投资前请做好充分的研究和风险评估</li>

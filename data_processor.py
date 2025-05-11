@@ -181,9 +181,20 @@ class DataProcessor:
             except:
                 breakout_volume_score = 0
             
-            scores['consolidation_score'] = max(0, min(10, int(10 - consolidation_range * 100)))
+            # Fix: Handle NaN values in consolidation_range
+            if np.isnan(consolidation_range):
+                scores['consolidation_score'] = 0
+            else:
+                scores['consolidation_score'] = max(0, min(10, int(10 - consolidation_range * 100)))
+                
             scores['volume_stability_score'] = volume_stability_score
-            scores['breakout_score'] = max(0, min(10, int(breakout_price_change)))
+            
+            # Fix: Handle NaN values in breakout_price_change
+            if np.isnan(breakout_price_change):
+                scores['breakout_score'] = 0
+            else:
+                scores['breakout_score'] = max(0, min(10, int(breakout_price_change)))
+                
             scores['breakout_volume_score'] = breakout_volume_score
         else:
             return None
@@ -203,7 +214,11 @@ class DataProcessor:
         rsi_current = recent_rsi.iloc[-1]
         rsi_trend = rsi_current - rsi_low
         
-        scores['rsi_score'] = max(0, min(10, int(rsi_trend * 0.5)))
+        # Fix: Check for NaN values before converting to integer
+        if np.isnan(rsi_trend):
+            scores['rsi_score'] = 0
+        else:
+            scores['rsi_score'] = max(0, min(10, int(rsi_trend * 0.5)))
         
         # 3. 移动平均线（判断突破）
         ma20 = data['price'].rolling(window=20).mean()
@@ -214,7 +229,11 @@ class DataProcessor:
         ma_cross = (price_current > ma20.iloc[-1]) and (price_current > ma60.iloc[-1])
         ma_trend = (ma20.iloc[-1] / ma60.iloc[-1] - 1) * 100
         
-        scores['ma_score'] = max(0, min(10, int(5 + ma_trend))) if ma_cross else 0
+        # Fix: Check for NaN values in ma_trend
+        if np.isnan(ma_trend):
+            scores['ma_score'] = 0
+        else:
+            scores['ma_score'] = max(0, min(10, int(5 + ma_trend))) if ma_cross else 0
         
         # 4. 市值（倾向于中小市值）
         market_cap = data['market_cap'].iloc[-1]

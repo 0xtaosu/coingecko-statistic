@@ -2,5 +2,5 @@
 .venv
 venv
 __pycache__
-data.csv
-coin_scores.csv
+*.csv
+*.log
