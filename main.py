@@ -5,14 +5,12 @@ import schedule
 import time
 import sys
 from data_processor import fetch_and_save_data, analyze_data
-# Comment out telegram bot import
-# from tg_bot import run_bot
+from tg_bot import run_bot
 import os
 import logging
 from datetime import datetime, timezone
 import pytz
 import pandas as pd
-from backtest import Backtester, DataLoader
 
 # 配置日志
 logging.basicConfig(
@@ -70,63 +68,15 @@ def index():
             
         logger.info(f"Successfully loaded {len(coins)} coins")
         
-        # 获取最新的交易信号
-        trading_signals = get_latest_trading_signals()
-        
         return render_template('index.html', 
                              coins=coins,
-                             update_time=update_time,
-                             trading_signals=trading_signals)
+                             update_time=update_time)
         
     except Exception as e:
         logger.error(f"Error loading index page: {e}")
         logger.exception("Detailed error:")
         return "Error loading data", 500
 
-def get_trading_signals():
-    """获取交易建议"""
-    try:
-        # 加载数据
-        data_loader = DataLoader()
-        coin_data = data_loader.load_data()
-        
-        # 初始化回测器
-        backtester = Backtester(
-            coin_data=coin_data,
-            initial_capital=10000,
-            stop_loss=0.1,
-            take_profit=0.2
-        )
-        
-        # 获取当前日期的信号
-        current_date = pd.Timestamp.now(tz='UTC')
-        signals = backtester.generate_signals(coin_data, [current_date], current_date)
-        
-        # 按信号强度排序
-        sorted_signals = sorted(
-            [(symbol, data) for symbol, data in signals.items()],
-            key=lambda x: x[1]['total_score'],
-            reverse=True
-        )
-        
-        # 处理买入建议
-        buy_signals = []
-        for symbol, signal in sorted_signals[:5]:
-            if signal['total_score'] > 7:
-                price = coin_data[symbol]['data'].iloc[-1]['price']
-                buy_signals.append({
-                    'symbol': symbol,
-                    'score': signal['total_score'],
-                    'price': price,
-                    'stop_loss': price * (1 - backtester.stop_loss),
-                    'take_profit': price * (1 + backtester.take_profit)
-                })
-                
-        return buy_signals
-        
-    except Exception as e:
-        logger.error(f"Error generating trading signals: {e}")
-        return []
 
 @app.route('/api/coins')
 def get_coins():
@@ -195,8 +145,8 @@ async def main():
         flask_thread.start()
         logger.info("Flask server thread started")
 
-        # 设置自动运行任务 - 北京时间早上9点
-        schedule.every().day.at("01:00").do(data_processing_job)
+        # 设置自动运行任务 - 北京时间早上9点进行数据处理
+        schedule.every().day.at("09:00").do(data_processing_job)
         
         auto_run_thread = threading.Thread(target=auto_run, daemon=True)
         auto_run_thread.start()
@@ -204,11 +154,14 @@ async def main():
         # 记录时间信息
         current_beijing_time = get_beijing_time()
         logger.info(f"Application started at Beijing time: {current_beijing_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("Task scheduled for 09:00 Beijing time (01:00 UTC)")
+        logger.info("Data processing scheduled for 09:00 Beijing time")
 
-        # Comment out Telegram Bot
-        # logger.info("Starting Telegram Bot...")
-        # bot_task = asyncio.create_task(run_bot())
+        # 启动 Telegram Bot（每天9:30发送简报），缺失配置则跳过
+        if os.getenv('TELEGRAM_BOT_TOKEN') and os.getenv('TELEGRAM_CHAT_ID'):
+            logger.info("Starting Telegram Bot...")
+            asyncio.create_task(run_bot())
+        else:
+            logger.warning("TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not set. Skipping bot startup.")
 
         # 等待直到程序被中断
         try:
@@ -223,37 +176,6 @@ async def main():
     finally:
         logger.info("Shutting down application...")
 
-def get_latest_trading_signals():
-    """从最新的日志文件中获取交易信号"""
-    try:
-        # 获取当前日期的日志文件名
-        current_date = datetime.now().strftime('%Y%m%d')
-        trade_log_file = f"trade_log_{current_date}.csv"
-        
-        if not os.path.exists(trade_log_file):
-            return []
-            
-        # 读取交易日志
-        df = pd.read_csv(trade_log_file)
-        
-        # 只获取最新的买入信号
-        latest_signals = df[df['Action'] == 'BUY'].tail(5)
-        
-        signals = []
-        for _, row in latest_signals.iterrows():
-            signals.append({
-                'symbol': row['Symbol'],
-                'price': float(row['Price']),
-                'stop_loss': float(row['Stop Loss']),
-                'take_profit': float(row['Take Profit']),
-                'score': float(row['Signal Score']) if 'Signal Score' in row else None
-            })
-            
-        return signals
-        
-    except Exception as e:
-        logger.error(f"Error reading trading signals: {e}")
-        return []
 
 if __name__ == "__main__":
     try:
